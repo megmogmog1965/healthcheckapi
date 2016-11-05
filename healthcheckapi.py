@@ -17,43 +17,21 @@ from logging.config import fileConfig
 
 # installed modules.
 import psutil
+import requests
 from flask import Flask
 from flask import jsonify
+from flask import request
 from flask.helpers import make_response
 
 # my modules.
 pass
 
 
+######## GLOBALS ########
+
 # flask app.
 app = Flask(__name__, static_path=u'/static', static_folder=u'./static')
 app.debug = True
-
-
-# config default.
-_config_deafult = ur'''{
-  "url": "/",
-  "port": 5000,
-  "status_code_healthy": 200,
-  "status_code_unhealthy": 500,
-  
-  "target_process": [
-    {
-      "pid": 3376,
-      "name": "Python",
-      "matching": "^.+/python .+$"
-    }
-  ],
-  
-  "target_http": [
-    {
-      "url": "https://foo.bar.com:80/baz",
-      "healthy_status_codes": [ 200, 201 ]
-    }
-  ]
-}
-'''
-
 
 ######## UTIL CLASSES ########
 
@@ -65,9 +43,15 @@ class _Dot(object):
         raw = self._inner[attr]
         return _Dot(raw) if isinstance(raw, (dict, list, tuple, )) else raw
     
+    def __contains__(self, item):
+        return item in self._inner
+    
     def __iter__(self):
         for raw in self._inner:
             yield _Dot(raw) if isinstance(raw, (dict, list, tuple, )) else raw
+    
+    def get_raw(self):
+        return self._inner
 
 ######## UTIL FUNCTIONS ########
 
@@ -94,6 +78,9 @@ def _logger():
 __cached_logger = None
 
 def _ignore_exception(fn, default=None):
+    '''
+    :rtype: function
+    '''
     def safe(*args, **kwargs):
         try:
             return fn(*args, **kwargs)
@@ -112,11 +99,6 @@ def _load_config():
     if __cached_conf:
         return __cached_conf
     
-    # create default if not exists.
-    if not os.path.isfile(config_path):
-        with codecs.open(config_path, 'w', 'utf-8') as f:
-            f.write(_config_deafult)
-    
     # load config.
     with codecs.open(config_path, 'r', 'utf-8') as f:
         obj = json.load(f)
@@ -128,31 +110,66 @@ __cached_conf = None
 ######## BUSINESS LOGIC FUNCTIONS ########
 
 def _check_process(config, process_list):
-    def eval_condi(condi, process_list):
+    '''
+    :param _Dot config: config root.
+    :param list process_list: see :function:`_get_proccesses`
+    :rtype: list of :class:`_Dot`
+    :return: a list of error conditions.
+    '''
+    def eval_condition(condition, process_list):
         procs = [ _Dot(p) for p in process_list ]
         res = False
         
         # pid.
-        res = res or reduce(lambda pre, proc: pre or proc.pid == condi.pid, procs, False)
+        res = res or reduce(lambda pre, proc: pre or proc.pid == condition.pid, procs, False)
         
         # name.
-        res = res or reduce(lambda pre, proc: pre or proc.name == condi.name, procs, False)
+        res = res or reduce(lambda pre, proc: pre or proc.name == condition.name, procs, False)
         
         # matching.
-        res = res or reduce(lambda pre, proc: pre or re.match(condi.matching, u' '.join(proc.cmdline)), procs, False)
+        res = res or reduce(lambda pre, proc: pre or re.match(condition.matching, u' '.join(proc.cmdline)), procs, False)
         
         return bool(res)
     
     conditions = config.target_process
-    is_healthy = reduce(lambda pre, cond: pre and eval_condi(cond, process_list), conditions, True)
+    errors = map(lambda cond: None if eval_condition(cond, process_list) else cond, conditions)
+    errors = filter(lambda cond: cond, errors)
     
-    return is_healthy
+    return errors
 
 def _check_http(config):
-    # :todo: implement me.
-    return True
+    '''
+    :param _Dot config: config root.
+    :rtype: list of :class:`_Dot`
+    :return: a list of error conditions.
+    '''
+    def eval_condition(condition):
+        # :todo: http, https, no-protocol.
+        url = condition.url
+        
+        try:
+            if url.startswith(u'http://'):
+                res = requests.get(url)
+            elif url.startswith(u'https://'):
+                res = requests.get(url, verify=condition.verify if 'verify' in condition else True)
+            else:
+                res = requests.get(u'http://127.0.0.1:80/%s' % (url.lstrip(u'/')))
+        except:
+            return False
+        
+        return res.status_code in condition.healthy_status_codes if condition.healthy_status_codes else res.status_code == 200
+    
+    conditions = config.target_http
+    errors = map(lambda cond: None if eval_condition(cond) else cond, conditions)
+    errors = filter(lambda cond: cond, errors)
+    
+    return errors
 
-def _get_current_proccesses():
+def _get_proccesses():
+    '''
+    :rtype: list of dict
+    :return: [ { 'pid': int, 'name': unicode, 'cmdline': list, 'status': unicode }, ... ]
+    '''
     def format_proc(proc):
         return {
             u'pid': proc.pid,
@@ -168,7 +185,10 @@ def _get_current_proccesses():
     return process_list
 
 def _print_format_processes():
-    process_list = _get_current_proccesses()
+    '''
+    :rtype: unicode
+    '''
+    process_list = _get_proccesses()
     process_list = map(lambda ps: dict(ps, cmdline=u' '.join(ps[u'cmdline'])), process_list)
     
     msg = json.dumps(process_list, indent=2)
@@ -182,15 +202,23 @@ def healthcheck_api():
     HTTP GET API to provide health check result.
     '''
     config = _load_config()
-    is_healthy = True
+    errors = []
+    
+    print request.url
     
     # check process.
-    is_healthy = is_healthy and _check_process(config, _get_current_proccesses())
+    errors = errors + _check_process(config, _get_proccesses())
     
     # check http.
-    is_healthy = is_healthy and _check_http(config)
+    errors = errors + _check_http(config)
     
-    return make_response(u'Healthy', config.status_code_healthy) if is_healthy else make_response(u'Unhealthy', config.status_code_unhealthy)
+    # to native objects from _Dot.
+    errors = map(lambda e: e.get_raw(), errors)
+    
+    if errors:
+        return make_response(jsonify(errors=errors), config.status_code_unhealthy)
+    
+    return make_response(jsonify({}), config.status_code_healthy)
 
 
 if __name__ == '__main__':
