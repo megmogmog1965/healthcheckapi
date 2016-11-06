@@ -21,7 +21,6 @@ import psutil
 import requests
 from flask import Flask
 from flask import jsonify
-from flask import request
 from flask.helpers import make_response
 
 # my modules.
@@ -213,8 +212,6 @@ def healthcheck_api():
     '''
     config = _load_config()
     errors = []
-    
-    print request.url
     
     # check process.
     errors = errors + _check_process(config, _get_proccesses())
