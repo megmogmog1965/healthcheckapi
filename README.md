@@ -2,11 +2,26 @@
 
 ## Usage
 
+Install libs.
+
+```
+$ python --version
+Python 2.7.12
+
+$ sudo pip install flask requests psutil --upgrade
+```
+
+Then, run this script.
+
 ```
 $ python healthcheckapi.py
 ```
 
-## Settings.
+You can access the url that returns status code 200 or 500. The code 200 means all conditions are satisfied.
+
+* http://localhost:5000/
+
+## Settings
 
 You can edit ``config.json`` in root directory.
 
@@ -35,7 +50,7 @@ You can edit ``config.json`` in root directory.
 }
 ```
 
-|tier1|tier2|optional (default)|example|
+|Keys||optional (default)|example|
 |:-----------|:------------|:------------:|:------------|
 |url|||/|
 |port|||5000|
@@ -43,10 +58,10 @@ You can edit ``config.json`` in root directory.
 |status_code_unhealthy|||500|
 |target_process||||
 ||pid|YES|21540|
-||name|YES|Python|
-||matching|YES|^.+/python .+$|
+||name|YES|"Python"|
+||matching|YES|"^.+/python .+$"|
 |target_http||||
-||url||https://localhost/foo/bar|
+||url||https://localhost:80/foo/bar|
 ||healthy_status_codes|YES (200)|[ 200, 201 ]
 ||verify|YES (true)|false
 

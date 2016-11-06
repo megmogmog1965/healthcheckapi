@@ -1,0 +1,22 @@
+{
+  "url": "/",
+  "port": 5000,
+  "status_code_healthy": 200,
+  "status_code_unhealthy": 500,
+  
+  "target_process": [
+    {
+      "pid": 21540,
+      "name": "Python",
+      "matching": "^.+/python .+$"
+    }
+  ],
+  
+  "target_http": [
+    {
+      "url": "https://localhost/foo/bar",
+      "healthy_status_codes": [ 200, 201 ],
+      "verify": false
+    }
+  ]
+}

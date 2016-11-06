@@ -107,6 +107,11 @@ def _load_config():
     return __cached_conf
 __cached_conf = None
 
+def _update_onmemory_config(config):
+    ''' for unittesting. '''
+    global __cached_conf
+    __cached_conf = config if isinstance(config, _Dot) else _Dot(config)
+
 ######## BUSINESS LOGIC FUNCTIONS ########
 
 def _check_process(config, process_list):
@@ -121,13 +126,16 @@ def _check_process(config, process_list):
         res = False
         
         # pid.
-        res = res or reduce(lambda pre, proc: pre or proc.pid == condition.pid, procs, False)
+        if u'pid' in condition:
+            res = res or reduce(lambda pre, proc: pre or proc.pid == condition.pid, procs, False)
         
         # name.
-        res = res or reduce(lambda pre, proc: pre or proc.name == condition.name, procs, False)
+        if u'name' in condition:
+            res = res or reduce(lambda pre, proc: pre or proc.name == condition.name, procs, False)
         
         # matching.
-        res = res or reduce(lambda pre, proc: pre or re.match(condition.matching, u' '.join(proc.cmdline)), procs, False)
+        if u'matching' in condition:
+            res = res or reduce(lambda pre, proc: pre or re.match(condition.matching, u' '.join(proc.cmdline)), procs, False)
         
         return bool(res)
     
@@ -157,7 +165,7 @@ def _check_http(config):
         except:
             return False
         
-        return res.status_code in condition.healthy_status_codes if condition.healthy_status_codes else res.status_code == 200
+        return res.status_code in condition.healthy_status_codes if u'healthy_status_codes' in condition else res.status_code == 200
     
     conditions = config.target_http
     errors = map(lambda cond: None if eval_condition(cond) else cond, conditions)
@@ -181,6 +189,7 @@ def _get_proccesses():
     process_list = psutil.process_iter()
     process_list = map(_ignore_exception(format_proc), process_list)
     process_list = filter(lambda ps: ps, process_list)
+    process_list = filter(lambda ps: not _Dot(ps).status in [ psutil.STATUS_ZOMBIE, psutil.STATUS_DEAD ], process_list)
     
     return process_list
 
