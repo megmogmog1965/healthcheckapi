@@ -236,10 +236,7 @@ def _handle_all_exception(error):
     # logging.
     _logger().error(traceback.format_exc())
     
-    # error response.
-    response = jsonify(error.to_dict())
-    response.status_code = error.status_code
-    return response
+    raise error
 
 
 if __name__ == '__main__':
