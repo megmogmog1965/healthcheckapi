@@ -3,6 +3,8 @@
 *~
 config.json
 .settings/*
+.*project
+*#
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
