@@ -13,6 +13,7 @@ import re
 import json
 import codecs
 import logging
+import traceback
 from logging.config import fileConfig
 
 # installed modules.
@@ -225,9 +226,20 @@ def healthcheck_api():
     errors = map(lambda e: e.get_raw(), errors)
     
     if errors:
+        _logger().error(json.dumps(errors))
         return make_response(jsonify(errors=errors), config.status_code_unhealthy)
     
     return make_response(jsonify({}), config.status_code_healthy)
+
+@app.errorhandler(Exception)
+def _handle_all_exception(error):
+    # logging.
+    _logger().error(traceback.format_exc())
+    
+    # error response.
+    response = jsonify(error.to_dict())
+    response.status_code = error.status_code
+    return response
 
 
 if __name__ == '__main__':
@@ -238,4 +250,5 @@ if __name__ == '__main__':
     
     # run web server.
     # :see: http://askubuntu.com/questions/224392/how-to-allow-remote-connections-to-flask
+    _logger().info(u'start app.')
     app.run(host='0.0.0.0', port=config.port, threaded=True, use_reloader=False)
