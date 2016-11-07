@@ -220,9 +220,9 @@ def run():
     app.run(host='0.0.0.0', port=config.port, threaded=True, use_reloader=False)
 
 def stop():
-    # :see: http://flask.pocoo.org/snippets/67/
-    func = request.environ.get('werkzeug.server.shutdown')
-    func()
+    _logger().info(u'stop app.')
+    config = _load_config()
+    requests.post('http://127.0.0.1:%s/shutdown' % (config.port))
 
 ######## FLASK API DEFS ########
 
@@ -248,6 +248,14 @@ def healthcheck_api():
         return make_response(jsonify(errors=errors), config.status_code_unhealthy)
     
     return make_response(jsonify({}), config.status_code_healthy)
+
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    # :see: http://flask.pocoo.org/snippets/67/
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError(u'Not running with the Werkzeug Server')
+    func()
 
 @app.errorhandler(Exception)
 def _handle_all_exception(error):
