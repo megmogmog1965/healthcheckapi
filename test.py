@@ -10,13 +10,14 @@ Created on Nov 6, 2016
 # built-in modules.
 import os
 import json
+import socket
 
 # installed modules.
 import psutil
 
 # my modules.
 from healthcheckapi import app, _load_config, _update_onmemory_config, _Dot
-from healthcheckapi import _check_process, _get_proccesses, _check_http
+from healthcheckapi import _check_process, _get_proccesses, _check_tcp, _check_http
 
 
 ######## TESTS ########
@@ -50,6 +51,19 @@ def test__check_process():
     assert _check_process(_create_config(target_process=[ { u'matching': u'Target1' } ]), proc_list)
     assert _check_process(_create_config(target_process=[ { u'matching': u'/bin/target-h' } ]), proc_list)
     assert _check_process(_create_config(target_process=[ { u'matching': u' /bin/target -h ' } ]), proc_list)
+
+def test__check_tcp():
+    # ip_address.
+    assert not _check_tcp(_create_config(target_tcp=[ { u'ip_address': socket.gethostbyname(u'google.com'), u'port': 80 } ]))
+    assert _check_tcp(_create_config(target_tcp=[ { u'ip_address': u'10.123.123.123', u'port': 80 } ]))
+    
+    # hostname.
+    assert not _check_tcp(_create_config(target_tcp=[ { u'hostname': u'google.com', u'port': 80 } ]))
+    assert _check_tcp(_create_config(target_tcp=[ { u'hostname': u'foo.bar.baz.appllllleeeee.com', u'port': 80 } ]))
+    
+    # port.
+    assert not _check_tcp(_create_config(target_tcp=[ { u'hostname': u'google.com', u'port': 80 } ]))
+    assert _check_tcp(_create_config(target_tcp=[ { u'hostname': u'google.com', u'port': 7199 } ]))
 
 def test__check_http():
     # "url": "https://localhost/foo/bar"
@@ -103,6 +117,26 @@ def test_healthcheck_api():
     _update_onmemory_config(_create_config(target_process=[ { u'matching': u'nosetests' } ]))
     assert client.get(u'/').status_code == 500
     
+    # tcp: ip_address.
+    _update_onmemory_config(_create_config(target_tcp=[ { u'ip_address': socket.gethostbyname(u'google.com'), u'port': 80 } ]))
+    assert client.get(u'/').status_code == 200
+    
+    _update_onmemory_config(_create_config(target_tcp=[ { u'ip_address': u'10.123.123.123', u'port': 80 } ]))
+    
+    # tcp: hostname.
+    _update_onmemory_config(_create_config(target_tcp=[ { u'hostname': u'google.com', u'port': 80 } ]))
+    assert client.get(u'/').status_code == 200
+    
+    _update_onmemory_config(_create_config(target_tcp=[ { u'hostname': u'foo.bar.baz.appllllleeeee.com', u'port': 80 } ]))
+    assert client.get(u'/').status_code == 500
+    
+    # tcp: port.
+    _update_onmemory_config(_create_config(target_tcp=[ { u'hostname': u'google.com', u'port': 80 } ]))
+    assert client.get(u'/').status_code == 200
+    
+    _update_onmemory_config(_create_config(target_tcp=[ { u'hostname': u'google.com', u'port': 7199 } ]))
+    assert client.get(u'/').status_code == 500
+    
     # http: matching.
     _update_onmemory_config(_create_config(target_http=[ { u'url': u'http://google.com' } ]))
     assert client.get(u'/').status_code == 200
@@ -131,6 +165,7 @@ def _create_config(**kwargs):
       u'status_code_healthy': 200,
       u'status_code_unhealthy': 500,
       u'target_process': [],
+      u'target_tcp': [],
       u'target_http': []
     }
     

@@ -12,6 +12,14 @@
     }
   ],
   
+  "target_tcp": [
+    {
+      "ip_address": "127.0.0.1",
+      "hostname": "localhost",
+      "port": 80
+    }
+  ],
+  
   "target_http": [
     {
       "url": "https://localhost/foo/bar",

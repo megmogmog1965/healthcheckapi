@@ -12,6 +12,7 @@ import os
 import re
 import json
 import codecs
+import socket
 import logging
 import traceback
 from logging.config import fileConfig
@@ -146,6 +147,32 @@ def _check_process(config, process_list):
     
     return errors
 
+def _check_tcp(config):
+    '''
+    :param _Dot config: config root.
+    :rtype: list of :class:`_Dot`
+    :return: a list of error conditions.
+    '''
+    def eval_condition(condition):
+        # ip_address or hostname.
+        try:
+            ip_address = condition.ip_address if u'ip_address' in condition else socket.gethostbyname(condition.hostname)
+        except:
+            return False
+        
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(10)
+        is_healthy = s.connect_ex((ip_address, condition.port)) == 0
+        s.close()
+        
+        return is_healthy
+    
+    conditions = config.target_tcp
+    errors = map(lambda cond: None if eval_condition(cond) else cond, conditions)
+    errors = filter(lambda cond: cond, errors)
+    
+    return errors
+
 def _check_http(config):
     '''
     :param _Dot config: config root.
@@ -153,7 +180,6 @@ def _check_http(config):
     :return: a list of error conditions.
     '''
     def eval_condition(condition):
-        # :todo: http, https, no-protocol.
         url = condition.url
         
         try:
@@ -236,6 +262,9 @@ def healthcheck_api():
     
     # check process.
     errors = errors + _check_process(config, _get_proccesses())
+    
+    # check tcp.
+    errors = errors + _check_tcp(config)
     
     # check http.
     errors = errors + _check_http(config)
