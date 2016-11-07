@@ -12,6 +12,7 @@ import os
 import re
 import json
 import codecs
+import socket
 import logging
 import traceback
 from logging.config import fileConfig
@@ -146,6 +147,32 @@ def _check_process(config, process_list):
     
     return errors
 
+def _check_tcp(config):
+    '''
+    :param _Dot config: config root.
+    :rtype: list of :class:`_Dot`
+    :return: a list of error conditions.
+    '''
+    def eval_condition(condition):
+        # ip_address or hostname.
+        try:
+            ip_address = condition.ip_address if u'ip_address' in condition else socket.gethostbyname(condition.hostname)
+        except:
+            return False
+        
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(10)
+        is_healthy = s.connect_ex((ip_address, condition.port)) == 0
+        s.close()
+        
+        return is_healthy
+    
+    conditions = config.target_tcp
+    errors = map(lambda cond: None if eval_condition(cond) else cond, conditions)
+    errors = filter(lambda cond: cond, errors)
+    
+    return errors
+
 def _check_http(config):
     '''
     :param _Dot config: config root.
@@ -153,7 +180,6 @@ def _check_http(config):
     :return: a list of error conditions.
     '''
     def eval_condition(condition):
-        # :todo: http, https, no-protocol.
         url = condition.url
         
         try:
@@ -204,6 +230,26 @@ def _print_format_processes():
     msg = json.dumps(process_list, indent=2)
     return msg
 
+def run():
+    # print current processes.
+    # :warning: should not use print for daemon use.
+    try:
+        print u'current processes:'
+        print _print_format_processes()
+    except:
+        pass # ignore error.
+    
+    # run web server.
+    # :see: http://askubuntu.com/questions/224392/how-to-allow-remote-connections-to-flask
+    _logger().info(u'start app.')
+    config = _load_config()
+    app.run(host='0.0.0.0', port=config.port, threaded=True, use_reloader=False)
+
+def stop():
+    _logger().info(u'stop app.')
+    config = _load_config()
+    requests.post('http://127.0.0.1:%s/shutdown' % (config.port))
+
 ######## FLASK API DEFS ########
 
 @app.route(_load_config().url, methods=['GET'])
@@ -214,10 +260,11 @@ def healthcheck_api():
     config = _load_config()
     errors = []
     
-    print request.url
-    
     # check process.
     errors = errors + _check_process(config, _get_proccesses())
+    
+    # check tcp.
+    errors = errors + _check_tcp(config)
     
     # check http.
     errors = errors + _check_http(config)
@@ -231,6 +278,14 @@ def healthcheck_api():
     
     return make_response(jsonify({}), config.status_code_healthy)
 
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    # :see: http://flask.pocoo.org/snippets/67/
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError(u'Not running with the Werkzeug Server')
+    func()
+
 @app.errorhandler(Exception)
 def _handle_all_exception(error):
     # logging.
@@ -240,12 +295,4 @@ def _handle_all_exception(error):
 
 
 if __name__ == '__main__':
-    # print current processes.
-    config = _load_config()
-    print u'current processes:'
-    print _print_format_processes()
-    
-    # run web server.
-    # :see: http://askubuntu.com/questions/224392/how-to-allow-remote-connections-to-flask
-    _logger().info(u'start app.')
-    app.run(host='0.0.0.0', port=config.port, threaded=True, use_reloader=False)
+    run()

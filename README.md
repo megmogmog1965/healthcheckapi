@@ -40,6 +40,14 @@ You can edit ``config.json`` in root directory.
     }
   ],
   
+  "target_tcp": [
+    {
+      "ip_address": "127.0.0.1",
+      "hostname": "localhost",
+      "port": 80
+    }
+  ],
+  
   "target_http": [
     {
       "url": "https://localhost/foo/bar",
@@ -60,9 +68,13 @@ You can edit ``config.json`` in root directory.
 ||pid|YES|21540|
 ||name|YES|"Python"|
 ||matching|YES|"^.+/python .+$"|
+|target_tcp||||
+||ip_address|YES|"127.0.0.1"|
+||hostname|YES|"localhost"|
+||port||80|
 |target_http||||
-||url||https://localhost:80/foo/bar|
-||healthy_status_codes|YES (200)|[ 200, 201 ]
+||url||"https://localhost:80/foo/bar"|
+||healthy_status_codes|YES (200)|[ 200, 201 ]|
 ||verify|YES (true)|false
 
 ## Author
