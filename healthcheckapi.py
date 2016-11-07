@@ -21,6 +21,7 @@ import psutil
 import requests
 from flask import Flask
 from flask import jsonify
+from flask import request
 from flask.helpers import make_response
 
 # my modules.
@@ -203,6 +204,26 @@ def _print_format_processes():
     msg = json.dumps(process_list, indent=2)
     return msg
 
+def run():
+    # print current processes.
+    # :warning: should not use print for daemon use.
+    try:
+        print u'current processes:'
+        print _print_format_processes()
+    except:
+        pass # ignore error.
+    
+    # run web server.
+    # :see: http://askubuntu.com/questions/224392/how-to-allow-remote-connections-to-flask
+    _logger().info(u'start app.')
+    config = _load_config()
+    app.run(host='0.0.0.0', port=config.port, threaded=True, use_reloader=False)
+
+def stop():
+    # :see: http://flask.pocoo.org/snippets/67/
+    func = request.environ.get('werkzeug.server.shutdown')
+    func()
+
 ######## FLASK API DEFS ########
 
 @app.route(_load_config().url, methods=['GET'])
@@ -237,12 +258,4 @@ def _handle_all_exception(error):
 
 
 if __name__ == '__main__':
-    # print current processes.
-    config = _load_config()
-    print u'current processes:'
-    print _print_format_processes()
-    
-    # run web server.
-    # :see: http://askubuntu.com/questions/224392/how-to-allow-remote-connections-to-flask
-    _logger().info(u'start app.')
-    app.run(host='0.0.0.0', port=config.port, threaded=True, use_reloader=False)
+    run()
